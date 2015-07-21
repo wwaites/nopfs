@@ -1,4 +1,4 @@
-package statfs
+package nopfs
 
 import (
 	"strings"
@@ -16,6 +16,7 @@ type Dispatcher interface {
 	GetPath()    []string
 	SetPath([]string)
 	IsDir()      bool
+	Size()       uint64
 	Read()       ([]byte, error)
 	Inode()      uint64
 	Flush()
@@ -51,6 +52,8 @@ func Fstat(d Dispatcher) (p *go9p.Dir) {
 	p.Muid = "none"
 	p.Muidnum = go9p.NOUID
 	p.Ext = ""
+
+	p.Length = d.Size()
 
 	now := time.Now().Unix()
 	p.Atime = uint32(now)
@@ -103,6 +106,10 @@ func NewDir() (d *Dir) {
 
 func (d *Dir) IsDir() bool {
 	return true
+}
+
+func (d *Dir) Size() uint64 {
+	return uint64(0)
 }
 
 func (d *Dir) Clone() Dispatcher {
@@ -173,6 +180,10 @@ func NewAnyDir() (a *AnyDir) {
 
 func (a *AnyDir) IsDir() bool {
 	return true
+}
+
+func (a *AnyDir) Size() uint64 {
+	return uint64(0)
 }
 
 func (a *AnyDir) Walk(name string) (Dispatcher, error) {
@@ -309,6 +320,10 @@ func (c *Cmd) Flush() {
 	c.clock.Unlock()
 }
 
+func (c *Cmd) Size() uint64 {
+	return uint64(0)
+}
+
 type File struct {
 	PseudoFile
 	data []byte
@@ -328,6 +343,10 @@ func (f *File) Clone() Dispatcher {
 
 func (f *File) Read() ([]byte, error) {
 	return f.data, nil
+}
+
+func (f *File) Size() uint64 {
+	return uint64(len(f.data))
 }
 
 func (f *File) Close() {}

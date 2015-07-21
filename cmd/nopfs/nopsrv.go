@@ -2,7 +2,7 @@ package main
 
 import (
 	"flag"
-	"hubs.net.uk/sw/statfs"
+	"hubs.net.uk/sw/nopfs"
 	"log"
 	)
 
@@ -32,24 +32,24 @@ example,
 func main() {
 	flag.Parse()
 
-	root := statfs.NewDir()
-	root.Append("README.txt", statfs.NewFile([]byte(readme_top)))
+	root := nopfs.NewDir()
+	root.Append("README.txt", nopfs.NewFile([]byte(readme_top)))
 
-	host := statfs.NewAnyDir()
+	host := nopfs.NewAnyDir()
 	root.Append("host", host)
-	host.Static("README.txt", statfs.NewFile([]byte(readme_host)))
+	host.Static("README.txt", nopfs.NewFile([]byte(readme_host)))
 
-	icmp := statfs.NewDir()
+	icmp := nopfs.NewDir()
 	host.Append("icmp", icmp)
-	icmp.Append("README.txt", statfs.NewFile([]byte(readme_icmp)))
-	icmp.Append("ping", statfs.NewCmd(Ping))
-	icmp.Append("ping6", statfs.NewCmd(Ping6))
-	icmp.Append("trace", statfs.NewCmd(Trace))
-	icmp.Append("trace6", statfs.NewCmd(Trace6))
-	icmp.Append("mtr", statfs.NewCmd(Mtr))
-	icmp.Append("mtrt", statfs.NewCmd(MtrT))
+	icmp.Append("README.txt", nopfs.NewFile([]byte(readme_icmp)))
+	icmp.Append("ping", nopfs.NewCmd(Ping))
+	icmp.Append("ping6", nopfs.NewCmd(Ping6))
+	icmp.Append("trace", nopfs.NewCmd(Trace))
+	icmp.Append("trace6", nopfs.NewCmd(Trace6))
+	icmp.Append("mtr", nopfs.NewCmd(Mtr))
+	icmp.Append("mtrt", nopfs.NewCmd(MtrT))
 
-	sfs := new(statfs.StatSrv)
+	sfs := new(nopfs.NopSrv)
 	sfs.Debuglevel = *debug
 	sfs.Root = root
 	sfs.Start(sfs)

@@ -10,7 +10,17 @@ var addr = flag.String("addr", ":5640", "network address")
 var debug = flag.Int("debug", 0, "print debug messages")
 
 var readme_top = `
-This is the top readme
+
+Network Operations File System
+==============================
+
+This directory tree exposes live information about the
+network through the filesystem. It can be navigated and
+manipulated using all of the usual tools for working 
+with files.
+
+  host/    information about specific hosts
+
 `
 
 var readme_host = `

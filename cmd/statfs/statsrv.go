@@ -14,6 +14,9 @@ func main() {
 
 	root := statfs.NewAnyDir()
 	root.Append("hello", statfs.NewHello())
+	root.Append("rtt", statfs.NewCmd(Ping))
+	root.Append("trace", statfs.NewCmd(Trace))
+
 	sfs := new(statfs.StatSrv)
 	sfs.Debuglevel = *debug
 	sfs.Root = root

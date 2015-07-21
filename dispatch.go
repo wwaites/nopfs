@@ -7,6 +7,7 @@ import (
 	"github.com/rminnich/go9p"
 	"time"
 	"os"
+	"os/exec"
 	"sync"
 )
 
@@ -227,3 +228,40 @@ func (h *Hello) Read() (data []byte, err error) {
 }
 
 func (h *Hello) Close() {}
+
+type Cmd struct {
+	sync.Mutex
+	PseudoFile
+	cmd   func ([]string)*exec.Cmd
+	data  []byte
+	err   error
+}
+
+func NewCmd(cmd func ([]string)*exec.Cmd) (c *Cmd) {
+	c = &Cmd{}
+	c.cmd = cmd
+	c.SetPath(make([]string, 0))
+	return
+}
+
+func (c *Cmd) Clone() Dispatcher {
+	n := NewCmd(c.cmd)
+	n.SetPath(c.GetPath())
+	return n
+}
+
+func (c *Cmd) Close() {
+	c.Lock()
+	defer c.Unlock()
+	c.data, c.err = nil, nil
+}
+
+func (c *Cmd) Read() ([]byte, error) {
+	c.Lock()
+	defer c.Unlock()
+	if c.data == nil {
+		cmd := c.cmd(c.path)
+		c.data, c.err = cmd.CombinedOutput()
+	}
+	return c.data, c.err
+}

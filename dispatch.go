@@ -87,7 +87,7 @@ func (p *Path) String() string {
 }
 
 type Dir struct {
-	sync.Mutex
+	sync.RWMutex
 	Path
 	entries map[string]Dispatcher
 	listing []byte
@@ -106,8 +106,8 @@ func (d *Dir) IsDir() bool {
 }
 
 func (d *Dir) Clone() Dispatcher {
-	d.Lock()
-	defer d.Unlock()
+	d.RLock()
+	defer d.RUnlock()
 	n := new(Dir)
 	n.SetPath(d.GetPath())
 	n.entries = d.entries
@@ -116,6 +116,8 @@ func (d *Dir) Clone() Dispatcher {
 }
 
 func (d *Dir) Walk(name string) (Dispatcher, error) {
+	d.RLock()
+	defer d.RUnlock()
 	subDisp, ok := d.entries[name]
 	if !ok {
 		return nil, os.ErrNotExist
@@ -128,8 +130,8 @@ func (d *Dir) Walk(name string) (Dispatcher, error) {
 }
 
 func (d *Dir) Read() ([]byte, error) {
-	d.Lock()
-	defer d.Unlock()
+	d.RLock()
+	defer d.RUnlock()
 	if d.listing == nil {
 		d.listing = make([]byte, 0)
 		for name, subDisp := range d.entries {
@@ -143,26 +145,29 @@ func (d *Dir) Read() ([]byte, error) {
 	return d.listing, nil
 }
 
-func (d *Dir) Append(name string, disp Dispatcher) {
-	d.entries[name] = disp
-}
-
-func (d *Dir) Close() {
+func (d *Dir) Append(name string, disp Dispatcher) *Dir {
 	d.Lock()
 	defer d.Unlock()
+	d.entries[name] = disp
 	d.listing = nil
+	return d
 }
 
+func (d *Dir) Close() {}
 func (d *Dir) Flush() {}
 
 type AnyDir struct {
+	sync.RWMutex
 	Path
 	entries map[string]Dispatcher
+	static  map[string]Dispatcher
+	listing []byte
 }
 
 func NewAnyDir() (a *AnyDir) {
 	a = &AnyDir{}
 	a.entries = make(map[string]Dispatcher)
+	a.static  = make(map[string]Dispatcher)
 	return
 }
 
@@ -171,25 +176,64 @@ func (a *AnyDir) IsDir() bool {
 }
 
 func (a *AnyDir) Walk(name string) (Dispatcher, error) {
-	subDisp := NewDir()
-	path := append(a.path, name)
-	subDisp.SetPath(path)
-	subDisp.entries = a.entries
-	return subDisp, nil
+	a.RLock()
+	defer a.RUnlock()
+	subDisp, ok := a.static[name]
+	if ok {
+		newDisp := subDisp.Clone()
+		path := append(a.path, name)
+		newDisp.SetPath(path)
+		return newDisp, nil
+	} else {
+		subDir := NewDir()
+		path := append(a.path, name)
+		subDir.SetPath(path)
+		subDir.entries = a.entries
+		return subDir, nil
+	}
 }
 
 func (a *AnyDir) Read() ([]byte, error) {
-	return make([]byte, 0), nil
+	a.RLock()
+	defer a.RUnlock()
+	if a.listing == nil {
+		a.listing = make([]byte, 0)
+		for name, subDisp := range a.static {
+			path := append(a.GetPath(), name)
+			newDisp := subDisp.Clone()
+			newDisp.SetPath(path)
+			b := go9p.PackDir(Fstat(newDisp), true)
+			a.listing = append(a.listing, b...)
+		}
+	}
+	return a.listing, nil
 }
 
-func (a *AnyDir) Append(name string, disp Dispatcher) {
-	a.entries[name] = disp
-}
 
 func (a *AnyDir) Clone() Dispatcher {
+	a.RLock()
+	defer a.RUnlock()
 	n := NewAnyDir()
 	n.SetPath(a.GetPath())
+	n.entries = a.entries
+	n.static  = a.static
+	n.listing = a.listing
 	return n
+}
+
+func (a *AnyDir) Append(name string, disp Dispatcher) *AnyDir {
+	a.Lock()
+	defer a.Unlock()
+	a.entries[name] = disp
+	return a
+}
+
+func (a *AnyDir) Static(name string, disp Dispatcher) *AnyDir {
+	a.Lock()
+	defer a.Unlock()
+	a.static[name] = disp
+	a.listing = nil
+	return a
 }
 
 func (a *AnyDir) Close() {}
@@ -264,3 +308,27 @@ func (c *Cmd) Flush() {
 	}
 	c.clock.Unlock()
 }
+
+type File struct {
+	PseudoFile
+	data []byte
+}
+
+func NewFile(data []byte) *File {
+	f := &File{}
+	f.data = data
+	return f
+}
+
+func (f *File) Clone() Dispatcher {
+	n := NewFile(f.data)
+	n.SetPath(f.GetPath())
+	return n
+}
+
+func (f *File) Read() ([]byte, error) {
+	return f.data, nil
+}
+
+func (f *File) Close() {}
+func (f *File) Flush() {}

@@ -18,6 +18,7 @@ type Dispatcher interface {
 	IsDir()      bool
 	Read()       ([]byte, error)
 	Inode()      uint64
+	Flush()
 	Walk(string) (Dispatcher, error)
 	Close()
 }
@@ -152,6 +153,7 @@ func (d *Dir) Close() {
 	d.listing = nil
 }
 
+func (d *Dir) Flush() {}
 
 type AnyDir struct {
 	Path
@@ -191,7 +193,7 @@ func (a *AnyDir) Clone() Dispatcher {
 }
 
 func (a *AnyDir) Close() {}
-
+func (a *AnyDir) Flush() {}
 
 type PseudoFile struct {
 	Path
@@ -206,62 +208,59 @@ func (f *PseudoFile) Walk(name string) (d Dispatcher, err error) {
 	return
 }
 
-type Hello struct {
-	PseudoFile
-}
-
-func NewHello() (h *Hello) {
-	h = &Hello{}
-	h.SetPath(make([]string, 0))
-	return
-}
-
-func (h *Hello) Clone() Dispatcher {
-	n := NewHello()
-	n.SetPath(h.GetPath())
-	return n
-}
-
-func (h *Hello) Read() (data []byte, err error) {
-	data = []byte("Hello World!\n")
-	return
-}
-
-func (h *Hello) Close() {}
-
 type Cmd struct {
-	sync.Mutex
 	PseudoFile
-	cmd   func ([]string)*exec.Cmd
+
+	cfun  func ([]string)*exec.Cmd
+	clock sync.Mutex
+	cmd   *exec.Cmd
+
+	dlock sync.Mutex
 	data  []byte
+
 	err   error
 }
 
 func NewCmd(cmd func ([]string)*exec.Cmd) (c *Cmd) {
 	c = &Cmd{}
-	c.cmd = cmd
+	c.cfun = cmd
 	c.SetPath(make([]string, 0))
 	return
 }
 
 func (c *Cmd) Clone() Dispatcher {
-	n := NewCmd(c.cmd)
+	n := NewCmd(c.cfun)
 	n.SetPath(c.GetPath())
 	return n
 }
 
 func (c *Cmd) Close() {
-	c.Lock()
-	defer c.Unlock()
+	c.dlock.Lock()
+	defer c.dlock.Unlock()
 	c.data, c.err = nil, nil
 }
 
 func (c *Cmd) Read() ([]byte, error) {
-	c.Lock()
-	defer c.Unlock()
+	c.dlock.Lock()
+	defer c.dlock.Unlock()
 	if c.data == nil {
-		cmd := c.cmd(c.path)
-		c.data, c.err = cmd.CombinedOutput()
+		c.clock.Lock()
+		c.cmd = c.cfun(c.path)
+		c.clock.Unlock()
+
+		c.data, c.err = c.cmd.CombinedOutput()
+
+		c.clock.Lock()
+		c.cmd = nil
+		c.clock.Unlock()
 	}
 	return c.data, c.err
+}
+
+func (c *Cmd) Flush() {
+	c.clock.Lock()
+	if c.cmd != nil {
+		c.cmd.Process.Kill()
+	}
+	c.clock.Unlock()
 }

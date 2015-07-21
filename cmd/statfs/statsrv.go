@@ -13,9 +13,12 @@ func main() {
 	flag.Parse()
 
 	root := statfs.NewAnyDir()
-	root.Append("hello", statfs.NewHello())
 	root.Append("rtt", statfs.NewCmd(Ping))
+	root.Append("rtt6", statfs.NewCmd(Ping6))
 	root.Append("trace", statfs.NewCmd(Trace))
+	root.Append("trace6", statfs.NewCmd(Trace6))
+	root.Append("mtr", statfs.NewCmd(Mtr))
+	root.Append("mtrt", statfs.NewCmd(MtrT))
 
 	sfs := new(statfs.StatSrv)
 	sfs.Debuglevel = *debug

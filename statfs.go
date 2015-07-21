@@ -143,8 +143,12 @@ func (sfs *StatSrv) FidDestroy(sfid *go9p.SrvFid) {
 	fid.Close()
 }
 
-func (*StatSrv) Flush(req *go9p.SrvReq) {
-	log.Printf("flush: %p", req)
+func (sfs *StatSrv) Flush(req *go9p.SrvReq) {
+	fid := req.Fid.Aux.(Dispatcher)
+	if sfs.Debuglevel > 0 {
+		log.Printf("flush %s", fid)
+	}
+	fid.Flush()
 }
 
 func (*StatSrv) Create(req *go9p.SrvReq) {

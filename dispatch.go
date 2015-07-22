@@ -300,7 +300,7 @@ func (c *Cmd) Read() ([]byte, error) {
 	defer c.dlock.Unlock()
 	if c.data == nil {
 		c.clock.Lock()
-		c.cmd = c.cfun(c.path)
+		c.cmd = c.cfun(c.GetPath())
 		c.clock.Unlock()
 
 		c.data, c.err = c.cmd.CombinedOutput()
@@ -323,6 +323,44 @@ func (c *Cmd) Flush() {
 func (c *Cmd) Size() uint64 {
 	return uint64(0)
 }
+
+type Fun struct {
+	PseudoFile
+	sync.Mutex
+	fun  func([]string) ([]byte, error)
+	data []byte
+}
+
+func NewFun(fun func([]string) ([]byte, error)) *Fun {
+	f := &Fun{}
+	f.fun = fun
+	f.SetPath(make([]string, 0))
+	return f
+}
+
+func (f *Fun) Clone() Dispatcher {
+	n := NewFun(f.fun)
+	n.SetPath(f.GetPath())
+	return n
+}
+
+func (f *Fun) Read() (data []byte, err error) {
+	f.Lock()
+	defer f.Unlock()
+	if f.data == nil {
+		data, err = f.fun(f.GetPath())
+		if err != nil {
+			f.data = data
+		}
+	} else {
+		data = f.data
+	}
+	return
+}
+
+func (f *Fun) Size() uint64 { return uint64(0) }
+func (f *Fun) Flush() {}
+func (f *Fun) Close() {}
 
 type File struct {
 	PseudoFile

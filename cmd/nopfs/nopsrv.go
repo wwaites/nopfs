@@ -10,7 +10,6 @@ var addr = flag.String("addr", ":5640", "network address")
 var debug = flag.Int("debug", 0, "print debug messages")
 
 var readme_top = `
-
 Network Operations File System
 ==============================
 
@@ -24,6 +23,9 @@ with files.
 `
 
 var readme_host = `
+Host operations
+===============
+
 Operations that may be done on a hostname or IP address.
 
   h/icmp/    ping, traceroute, etc.
@@ -38,6 +40,10 @@ example,
   127.0.0.1 is alive (0.02 ms)
 
 `
+
+func path2host(path []string) string {
+	return path[1]
+}
 
 func main() {
 	flag.Parse()
@@ -58,6 +64,16 @@ func main() {
 	icmp.Append("trace6", nopfs.NewCmd(Trace6))
 	icmp.Append("mtr", nopfs.NewCmd(Mtr))
 	icmp.Append("mtrt", nopfs.NewCmd(MtrT))
+
+	dns := nopfs.NewDir()
+	host.Append("dns", dns)
+	dns.Append("README.txt", nopfs.NewFile([]byte(readme_dns)))
+	dns.Append("addr", nopfs.NewFun(Addr))
+	dns.Append("cname", nopfs.NewFun(CName))
+	dns.Append("name", nopfs.NewFun(Name))
+	dns.Append("mx", nopfs.NewFun(MX))
+	dns.Append("ns", nopfs.NewFun(NS))
+	dns.Append("txt", nopfs.NewFun(TXT))
 
 	sfs := new(nopfs.NopSrv)
 	sfs.Debuglevel = *debug

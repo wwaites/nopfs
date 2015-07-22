@@ -5,6 +5,9 @@ import (
 )
 
 var readme_icmp = `
+ICMP and similar network probes
+===============================
+
 This directory contains tests that use ICMP to measure
 characteristics of the host. Chiefly this means ping(1)
 and traceroute(1) as well as the more advanced mtr(1).
@@ -46,32 +49,32 @@ func init() {
 }
 
 func Ping(path []string) *exec.Cmd {
-	host := path[1]
+	host := path2host(path)
 	cmd := exec.Command(fping, "-e", "-r", "0", host)
 	return cmd
 }
 
 func Trace(path []string) *exec.Cmd {
-	host := path[1]
+	host := path2host(path)
 	return exec.Command(trace, "-I", host)
 }
 
 func Ping6(path []string) *exec.Cmd {
-	host := path[1]
+	host := path2host(path)
 	return exec.Command(fping6, "-e", "-r", "0", host)
 }
 
 func Trace6(path []string) *exec.Cmd {
-	host := path[1]
+	host := path2host(path)
 	return exec.Command(trace6, "-I", host)
 }
 
 func Mtr(path []string) *exec.Cmd {
-	host := path[1]
+	host := path2host(path)
 	return exec.Command(mtr, "-w", "-e", "-b", "-r", host)
 }
 
 func MtrT(path []string) *exec.Cmd {
-	host := path[1]
+	host := path2host(path)
 	return exec.Command(mtr, "-w", "-e", "-b", "-r", "-T", host)
 }

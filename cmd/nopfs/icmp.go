@@ -8,9 +8,9 @@ var readme_icmp = `
 ICMP and similar network probes
 ===============================
 
-This directory contains tests that use ICMP to measure
-characteristics of the host. Chiefly this means ping(1)
-and traceroute(1) as well as the more advanced mtr(1).
+This directory contains tests that use ICMP to measure characteristics
+of the host. Chiefly this means ping(1) and traceroute(1) as well as
+the more advanced mtr(1).
 
 `
 

@@ -13,10 +13,9 @@ var readme_top = `
 Network Operations File System
 ==============================
 
-This directory tree exposes live information about the
-network through the filesystem. It can be navigated and
-manipulated using all of the usual tools for working 
-with files.
+This directory tree exposes live information about the network through
+the filesystem. It can be navigated and manipulated using all of the
+usual tools for working with files.
 
   host/    information about specific hosts
 
@@ -31,10 +30,9 @@ Operations that may be done on a hostname or IP address.
   h/icmp/    ping, traceroute, etc.
   h/dns/     gathering information from domain name system.
 
-It suffices to change into the subdirectory named for the
-host or IP address. These subdirectories will not appear
-in a listing but can nevertheless be descended into, for
-example,
+It suffices to change into the subdirectory named for the host or IP
+address. These subdirectories will not appear in a listing but can
+nevertheless be descended into, for example,
 
   % cat 127.0.0.1/icmp/ping
   127.0.0.1 is alive (0.02 ms)

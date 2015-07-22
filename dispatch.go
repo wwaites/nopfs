@@ -12,15 +12,20 @@ import (
 )
 
 type Dispatcher interface {
-	Clone()      Dispatcher
-	GetPath()    []string
+	Clone()               Dispatcher
+	GetPath()             []string
 	SetPath([]string)
-	IsDir()      bool
-	Size()       uint64
-	Read()       ([]byte, error)
-	Inode()      uint64
+	GetParent()           Dispatcher
+	SetParent(Dispatcher)
+
+	IsDir()           bool
+	Size()            uint64
+	Read()            ([]byte, error)
+	Write([]byte)     error
+	Inode()           uint64
+	Perms()           uint32
 	Flush()
-	Walk(string) (Dispatcher, error)
+	Walk(string)      (Dispatcher, error)
 	Close()
 }
 
@@ -41,9 +46,8 @@ func Fstat(d Dispatcher) (p *go9p.Dir) {
 	p.Qid = *Qid(d)
 	if d.IsDir() {
 		p.Mode |= go9p.DMDIR
-		p.Mode |= 0111
 	}
-	p.Mode |= 0444
+	p.Mode |= d.Perms()
 
 	p.Uid = "none"
 	p.Uidnum = uint32(0)
@@ -67,7 +71,8 @@ func Fstat(d Dispatcher) (p *go9p.Dir) {
 }
 
 type Path struct {
-	path []string
+	parent Dispatcher
+	path   []string
 }
 
 func (p *Path) GetPath() []string {
@@ -89,6 +94,14 @@ func (p *Path) String() string {
 	return strings.Join(p.path, "/")
 }
 
+func (p *Path) GetParent() Dispatcher {
+	return p.parent
+}
+
+func (p *Path) SetParent(parent Dispatcher) {
+	p.parent = parent
+}
+
 type Dir struct {
 	sync.RWMutex
 	Path
@@ -103,6 +116,9 @@ func NewDir() (d *Dir) {
 	return
 }
 
+func (d *Dir) Perms() uint32 {
+	return 0555
+}
 
 func (d *Dir) IsDir() bool {
 	return true
@@ -117,6 +133,7 @@ func (d *Dir) Clone() Dispatcher {
 	defer d.RUnlock()
 	n := new(Dir)
 	n.SetPath(d.GetPath())
+	n.SetParent(d.GetParent())
 	n.entries = d.entries
 	n.listing = d.listing
 	return n
@@ -132,6 +149,7 @@ func (d *Dir) Walk(name string) (Dispatcher, error) {
 		newDisp := subDisp.Clone()
 		path := append(d.path, name)
 		newDisp.SetPath(path)
+		newDisp.SetParent(d)
 		return newDisp, nil
 	}
 }
@@ -160,21 +178,27 @@ func (d *Dir) Append(name string, disp Dispatcher) *Dir {
 	return d
 }
 
+func (d *Dir) Write([]byte) error {
+	return os.ErrInvalid
+}
 func (d *Dir) Close() {}
 func (d *Dir) Flush() {}
 
 type AnyDir struct {
-	sync.RWMutex
 	Path
+	lock    *sync.RWMutex
 	entries map[string]Dispatcher
+	history map[string]bool
 	static  map[string]Dispatcher
 	listing []byte
 }
 
 func NewAnyDir() (a *AnyDir) {
 	a = &AnyDir{}
+	a.lock    = &sync.RWMutex{}
 	a.entries = make(map[string]Dispatcher)
 	a.static  = make(map[string]Dispatcher)
+	a.history = make(map[string]bool)
 	return
 }
 
@@ -182,31 +206,38 @@ func (a *AnyDir) IsDir() bool {
 	return true
 }
 
+func (a *AnyDir) Perms() uint32 {
+	return 0555
+}
+
 func (a *AnyDir) Size() uint64 {
 	return uint64(0)
 }
 
 func (a *AnyDir) Walk(name string) (Dispatcher, error) {
-	a.RLock()
-	defer a.RUnlock()
+	a.lock.Lock()
+	defer a.lock.Unlock()
 	subDisp, ok := a.static[name]
 	if ok {
 		newDisp := subDisp.Clone()
 		path := append(a.path, name)
 		newDisp.SetPath(path)
+		newDisp.SetParent(a)
 		return newDisp, nil
 	} else {
+		a.history[name] = true
 		subDir := NewDir()
 		path := append(a.path, name)
 		subDir.SetPath(path)
+		subDir.SetParent(a)
 		subDir.entries = a.entries
 		return subDir, nil
 	}
 }
 
 func (a *AnyDir) Read() ([]byte, error) {
-	a.RLock()
-	defer a.RUnlock()
+	a.lock.RLock()
+	defer a.lock.RUnlock()
 	if a.listing == nil {
 		a.listing = make([]byte, 0)
 		for name, subDisp := range a.static {
@@ -216,39 +247,68 @@ func (a *AnyDir) Read() ([]byte, error) {
 			b := go9p.PackDir(Fstat(newDisp), true)
 			a.listing = append(a.listing, b...)
 		}
+		for name, _ := range a.history {
+			subDir := NewDir()
+			path := append(a.path, name)
+			subDir.SetPath(path)
+			subDir.entries = a.entries
+			b := go9p.PackDir(Fstat(subDir), true)
+			a.listing = append(a.listing, b...)
+		}
 	}
 	return a.listing, nil
 }
 
 
 func (a *AnyDir) Clone() Dispatcher {
-	a.RLock()
-	defer a.RUnlock()
+	a.lock.RLock()
+	defer a.lock.RUnlock()
 	n := NewAnyDir()
 	n.SetPath(a.GetPath())
+	n.SetParent(a.GetParent())
+	n.lock    = a.lock
 	n.entries = a.entries
 	n.static  = a.static
 	n.listing = a.listing
+	n.history = a.history
 	return n
 }
 
 func (a *AnyDir) Append(name string, disp Dispatcher) *AnyDir {
-	a.Lock()
-	defer a.Unlock()
+	a.lock.Lock()
+	defer a.lock.Unlock()
 	a.entries[name] = disp
 	return a
 }
 
 func (a *AnyDir) Static(name string, disp Dispatcher) *AnyDir {
-	a.Lock()
-	defer a.Unlock()
+	a.lock.Lock()
+	defer a.lock.Unlock()
 	a.static[name] = disp
 	a.listing = nil
 	return a
 }
 
+func (a *AnyDir) Write([]byte) error {
+	return os.ErrInvalid
+}
 func (a *AnyDir) Close() {}
 func (a *AnyDir) Flush() {}
+
+func AnyDirCtlReset(c *Ctl, data []byte) (resp []byte, err error) {
+	dir, ok := c.GetParent().(*AnyDir)
+	if !ok {
+		err = os.ErrInvalid
+		return
+	}
+	dir.lock.Lock()
+	defer dir.lock.Unlock()
+	for k, _ := range dir.history {
+		delete(dir.history, k)
+	}
+	resp = []byte("ok")
+	return
+}
 
 type PseudoFile struct {
 	Path
@@ -261,6 +321,10 @@ func (f *PseudoFile) IsDir() bool {
 func (f *PseudoFile) Walk(name string) (d Dispatcher, err error) {
 	err = os.ErrInvalid
 	return
+}
+
+func (f *PseudoFile) Write([]byte) error {
+	return os.ErrInvalid
 }
 
 type Cmd struct {
@@ -283,9 +347,15 @@ func NewCmd(cmd func ([]string)*exec.Cmd) (c *Cmd) {
 	return
 }
 
+func (c *Cmd) Perms() uint32 {
+	return 0444
+}
+
+
 func (c *Cmd) Clone() Dispatcher {
 	n := NewCmd(c.cfun)
 	n.SetPath(c.GetPath())
+	n.SetParent(c.GetParent())
 	return n
 }
 
@@ -312,6 +382,7 @@ func (c *Cmd) Read() ([]byte, error) {
 	return c.data, c.err
 }
 
+
 func (c *Cmd) Flush() {
 	c.clock.Lock()
 	if c.cmd != nil {
@@ -323,6 +394,7 @@ func (c *Cmd) Flush() {
 func (c *Cmd) Size() uint64 {
 	return uint64(0)
 }
+
 
 type Fun struct {
 	PseudoFile
@@ -338,9 +410,14 @@ func NewFun(fun func([]string) ([]byte, error)) *Fun {
 	return f
 }
 
+func (f *Fun) Perms() uint32 {
+	return 0444
+}
+
 func (f *Fun) Clone() Dispatcher {
 	n := NewFun(f.fun)
 	n.SetPath(f.GetPath())
+	n.SetParent(f.GetParent())
 	return n
 }
 
@@ -373,9 +450,14 @@ func NewFile(data []byte) *File {
 	return f
 }
 
+func (f *File) Perms() uint32 {
+	return 0444
+}
+
 func (f *File) Clone() Dispatcher {
 	n := NewFile(f.data)
 	n.SetPath(f.GetPath())
+	n.SetParent(f.GetParent())
 	return n
 }
 
@@ -389,3 +471,54 @@ func (f *File) Size() uint64 {
 
 func (f *File) Close() {}
 func (f *File) Flush() {}
+
+type Ctl struct {
+	Path
+	sync.RWMutex
+	Writer   func(*Ctl, []byte) ([]byte, error)
+	buf      []byte
+}
+
+func (c *Ctl) Clone() Dispatcher {
+	n := &Ctl{Writer: c.Writer}
+	n.SetPath(c.GetPath())
+	n.SetParent(c.GetParent())
+	return n
+}
+
+func (c *Ctl) Perms() uint32 { return 0666 }
+func (c *Ctl) IsDir() bool { return false }
+func (c *Ctl) Close() {}
+func (c *Ctl) Flush() {}
+
+func (c *Ctl) Read() (data []byte, err error) {
+	c.RLock()
+	defer c.RUnlock()
+	if c.buf == nil {
+		err = os.ErrNotExist
+		return
+	}
+	data = c.buf
+	return
+}
+
+func (c *Ctl) Write(data []byte) (err error) {
+	c.Lock()
+	defer c.Unlock()
+	c.buf, err = c.Writer(c, data)
+	return
+}
+
+func (c *Ctl) Size() uint64 {
+	c.RLock()
+	if c.buf == nil {
+		return uint64(0)
+	} else {
+		return uint64(len(c.buf))
+	}
+}
+
+func (c *Ctl) Walk(name string) (d Dispatcher, err error) {
+	err = os.ErrInvalid
+	return
+}

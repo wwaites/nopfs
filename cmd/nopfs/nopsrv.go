@@ -37,6 +37,12 @@ nevertheless be descended into, for example,
   % cat 127.0.0.1/icmp/ping
   127.0.0.1 is alive (0.02 ms)
 
+This filesystem caches recently accessed hosts, and they will appear
+as directories. There is a control interface for clearing the cache,
+which consists of doing a write operation on the 'clear' file, as in,
+
+  % echo > clear
+
 `
 
 func path2host(path []string) string {
@@ -52,6 +58,7 @@ func main() {
 	host := nopfs.NewAnyDir()
 	root.Append("host", host)
 	host.Static("README.txt", nopfs.NewFile([]byte(readme_host)))
+	host.Static("clear", &nopfs.Ctl{Writer: nopfs.AnyDirCtlReset})
 
 	icmp := nopfs.NewDir()
 	host.Append("icmp", icmp)

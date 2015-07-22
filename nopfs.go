@@ -153,9 +153,20 @@ func (*NopSrv) Create(req *go9p.SrvReq) {
 }
 
 
-func (*NopSrv) Write(req *go9p.SrvReq) {
-	log.Printf("write: %p", req)
-	req.RespondError(errors.New("write: ..."))
+func (sfs *NopSrv) Write(req *go9p.SrvReq) {
+	fid := req.Fid.Aux.(Dispatcher)
+	tc := req.Tc
+	if sfs.Debuglevel > 0 {
+		log.Printf("write: %f", fid)
+	}
+
+	e := fid.Write(tc.Data)
+	if e != nil {
+		req.RespondError(toError(e))
+		return
+	}
+
+	req.RespondRwrite(uint32(len(tc.Data)))
 }
 
 func (*NopSrv) Clunk(req *go9p.SrvReq) {
@@ -168,6 +179,7 @@ func (*NopSrv) Remove(req *go9p.SrvReq) {
 }
 
 func (*NopSrv) Wstat(req *go9p.SrvReq) {
-	log.Printf("wstat: %p", req)
-	req.RespondError(errors.New("wstat: ..."))
+//	log.Printf("wstat: %p", req)
+//	req.RespondError(errors.New("wstat: ..."))
+	req.RespondRwstat()
 }

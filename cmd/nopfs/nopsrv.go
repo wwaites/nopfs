@@ -63,12 +63,22 @@ func main() {
 	icmp := nopfs.NewDir()
 	host.Append("icmp", icmp)
 	icmp.Append("README.txt", nopfs.NewFile([]byte(readme_icmp)))
-	icmp.Append("ping", nopfs.NewCmd(Ping))
-	icmp.Append("ping6", nopfs.NewCmd(Ping6))
-	icmp.Append("trace", nopfs.NewCmd(Trace))
-	icmp.Append("trace6", nopfs.NewCmd(Trace6))
-	icmp.Append("mtr", nopfs.NewCmd(Mtr))
-	icmp.Append("mtrt", nopfs.NewCmd(MtrT))
+	if len(ping) > 0 {
+		icmp.Append("ping", nopfs.NewCmd(Ping))
+	}
+	if len(ping6) > 0 {
+		icmp.Append("ping6", nopfs.NewCmd(Ping6))
+	}
+	if len(trace) > 0 {
+		icmp.Append("trace", nopfs.NewCmd(Trace))
+	}
+	if len(trace6) > 0 {
+		icmp.Append("trace6", nopfs.NewCmd(Trace6))
+	}
+	if len(mtr) > 0 {
+		icmp.Append("mtr", nopfs.NewCmd(Mtr))
+		icmp.Append("mtrt", nopfs.NewCmd(MtrT))
+	}
 
 	dns := nopfs.NewDir()
 	host.Append("dns", dns)

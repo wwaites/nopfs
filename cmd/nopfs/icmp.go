@@ -1,6 +1,7 @@
 package main
 
 import (
+	"log"
 	"os/exec"
 )
 
@@ -14,43 +15,44 @@ the more advanced mtr(1).
 
 `
 
-var fping string
-var fping6 string
+var ping string
+var ping6 string
 var trace string
 var trace6 string
 var mtr string
+var fping = true
+var fping6 = true
 
 func init() {
 	var err error
-	fping, err = exec.LookPath("fping")
+	ping, err = exec.LookPath("fping")
 	if err != nil {
-		panic(err)
+		ping, _ = exec.LookPath("ping")
+		fping = false
 	}
-
-	fping6, err = exec.LookPath("fping6")
+	log.Printf("[icmp] echo program: %s", ping)
+	ping6, err = exec.LookPath("fping6")
 	if err != nil {
-		panic(err)
+		ping6, _ = exec.LookPath("ping6")
+		fping6 = false
 	}
-
-	trace, err = exec.LookPath("traceroute")
-	if err != nil {
-		panic(err)
-	}
-
-	trace6, err = exec.LookPath("traceroute6")
-	if err != nil {
-		panic(err)
-	}
-
-	mtr, err = exec.LookPath("mtr")
-	if err != nil {
-		panic(err)
-	}
+	log.Printf("[icmp6] echo program: %s", ping6)
+	trace, _ = exec.LookPath("traceroute")
+	log.Printf("[icmp] traceroute program: %s", trace)
+	trace6, _ = exec.LookPath("traceroute6")
+	log.Printf("[icmp6] traceroute program: %s", trace6)
+	mtr, _ = exec.LookPath("mtr")
+	log.Printf("[icmp] pretty traceroute: %s", mtr)
 }
 
 func Ping(path []string) *exec.Cmd {
 	host := path2host(path)
-	cmd := exec.Command(fping, "-e", "-r", "0", host)
+	var cmd *exec.Cmd
+	if fping {
+		cmd = exec.Command(ping, "-e", "-r", "0", host)
+	} else {
+		cmd = exec.Command(ping, "-c", "1", host)
+	}
 	return cmd
 }
 
@@ -61,7 +63,13 @@ func Trace(path []string) *exec.Cmd {
 
 func Ping6(path []string) *exec.Cmd {
 	host := path2host(path)
-	return exec.Command(fping6, "-e", "-r", "0", host)
+	var cmd *exec.Cmd
+	if fping6 {
+		cmd = exec.Command(ping6, "-e", "-r", "0", host)
+	} else {
+		cmd = exec.Command(ping6, "-c", "1", host)
+	}
+	return cmd
 }
 
 func Trace6(path []string) *exec.Cmd {

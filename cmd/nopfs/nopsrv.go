@@ -3,6 +3,8 @@ package main
 import (
 	"flag"
 	"hubs.net.uk/sw/nopfs"
+	"hubs.net.uk/sw/nopfs/icmp"
+	"hubs.net.uk/sw/nopfs/dns"
 	"log"
 	)
 
@@ -45,10 +47,6 @@ which consists of doing a write operation on the 'clear' file, as in,
 
 `
 
-func path2host(path []string) string {
-	return path[1]
-}
-
 func main() {
 	flag.Parse()
 
@@ -60,35 +58,8 @@ func main() {
 	host.Static("README.txt", nopfs.NewFile([]byte(readme_host)))
 	host.Static("clear", &nopfs.Ctl{Writer: nopfs.AnyDirCtlReset})
 
-	icmp := nopfs.NewDir()
-	host.Append("icmp", icmp)
-	icmp.Append("README.txt", nopfs.NewFile([]byte(readme_icmp)))
-	if len(ping) > 0 {
-		icmp.Append("ping", nopfs.NewCmd(Ping))
-	}
-	if len(ping6) > 0 {
-		icmp.Append("ping6", nopfs.NewCmd(Ping6))
-	}
-	if len(trace) > 0 {
-		icmp.Append("trace", nopfs.NewCmd(Trace))
-	}
-	if len(trace6) > 0 {
-		icmp.Append("trace6", nopfs.NewCmd(Trace6))
-	}
-	if len(mtr) > 0 {
-		icmp.Append("mtr", nopfs.NewCmd(Mtr))
-		icmp.Append("mtrt", nopfs.NewCmd(MtrT))
-	}
-
-	dns := nopfs.NewDir()
-	host.Append("dns", dns)
-	dns.Append("README.txt", nopfs.NewFile([]byte(readme_dns)))
-	dns.Append("addr", nopfs.NewFun(Addr))
-	dns.Append("cname", nopfs.NewFun(CName))
-	dns.Append("name", nopfs.NewFun(Name))
-	dns.Append("mx", nopfs.NewFun(MX))
-	dns.Append("ns", nopfs.NewFun(NS))
-	dns.Append("txt", nopfs.NewFun(TXT))
+	host.Append("icmp", icmp.Dir)
+	host.Append("dns", dns.Dir)
 
 	sfs := new(nopfs.NopSrv)
 	sfs.Debuglevel = *debug

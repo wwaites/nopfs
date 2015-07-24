@@ -1,8 +1,9 @@
-package main
+package dns
 
 import (
 	"bytes"
 	"fmt"
+	"hubs.net.uk/sw/nopfs"
 	"net"
 	"os"
 )
@@ -24,9 +25,9 @@ usually /etc/hosts followed by DNS.
   - txt     Look up any text records for a name
 
 `
+var Readme nopfs.Dispatcher = nopfs.NewFile([]byte(readme_dns))
 
-func Addr(path []string) (data []byte, err error) {
-	host := path2host(path)
+func addr(host string) (data []byte, err error) {
 	addrs, err := net.LookupHost(host)
 	if err != nil {
 		err = os.ErrNotExist
@@ -41,9 +42,9 @@ func Addr(path []string) (data []byte, err error) {
 	data = buf.Bytes()
 	return
 }
+var Addr nopfs.Dispatcher = nopfs.NewFun(nopfs.HostF(addr))
 
-func CName(path []string) (data []byte, err error) {
-	host := path2host(path)
+func cname(host string) (data []byte, err error) {
 	cname, err := net.LookupCNAME(host)
 	if err != nil {
 		err = os.ErrNotExist
@@ -56,10 +57,9 @@ func CName(path []string) (data []byte, err error) {
 	data = buf.Bytes()
 	return
 }
+var CName nopfs.Dispatcher = nopfs.NewFun(nopfs.HostF(cname))
 
-
-func Name(path []string) (data []byte, err error) {
-	addr := path2host(path)
+func name(addr string) (data []byte, err error) {
 	names, err := net.LookupAddr(addr)
 	if err != nil {
 		err = os.ErrNotExist
@@ -74,9 +74,9 @@ func Name(path []string) (data []byte, err error) {
 	data = buf.Bytes()
 	return
 }
+var Name nopfs.Dispatcher = nopfs.NewFun(nopfs.HostF(name))
 
-func MX(path []string) (data []byte, err error) {
-	host := path2host(path)
+func mx(host string) (data []byte, err error) {
 	mxs, err := net.LookupMX(host)
 	if err != nil {
 		err = os.ErrNotExist
@@ -91,9 +91,9 @@ func MX(path []string) (data []byte, err error) {
 	data = buf.Bytes()
 	return
 }
+var MX nopfs.Dispatcher = nopfs.NewFun(nopfs.HostF(mx))
 
-func NS(path []string) (data []byte, err error) {
-	domain := path2host(path)
+func ns(domain string) (data []byte, err error) {
 	nss, err := net.LookupNS(domain)
 	if err != nil {
 		err = os.ErrNotExist
@@ -109,9 +109,9 @@ func NS(path []string) (data []byte, err error) {
 	data = buf.Bytes()
 	return
 }
+var NS nopfs.Dispatcher = nopfs.NewFun(nopfs.HostF(ns))
 
-func TXT(path []string) (data []byte, err error) {
-	host := path2host(path)
+func txt(host string) (data []byte, err error) {
 	txts, err := net.LookupTXT(host)
 	if err != nil {
 		err = os.ErrNotExist
@@ -126,4 +126,18 @@ func TXT(path []string) (data []byte, err error) {
 	}
 	data = buf.Bytes()
 	return
+}
+var TXT nopfs.Dispatcher = nopfs.NewFun(nopfs.HostF(txt))
+
+var Dir *nopfs.Dir
+func init() {
+	Dir = nopfs.NewDir()
+	Dir.Append("README.txt", Readme)
+	Dir.Append("addr", Addr)
+	Dir.Append("cname", CName)
+	Dir.Append("name", Name)
+	Dir.Append("mx", MX)
+	Dir.Append("ns", NS)
+	Dir.Append("txt", TXT)
+
 }

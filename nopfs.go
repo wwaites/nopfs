@@ -52,7 +52,7 @@ func (sfs *NopSrv) Walk(req *go9p.SrvReq) {
 		w := make([]go9p.Qid, 0)
 		req.RespondRwalk(w)
 	} else {
-		nfid, err := fid.Walk(tc.Wname[0])
+		nfid, err := fid.Walk(req, tc.Wname[0])
 		if err != nil {
 			req.RespondError(toError(err))
 			return
@@ -80,7 +80,7 @@ func (sfs *NopSrv) Read(req *go9p.SrvReq) {
 		log.Printf("read %T %s %d:%d", fid, fid, tc.Offset, tc.Count)
 	}
 
-	buf, err := fid.Read()
+	buf, err := fid.Read(req)
 	if err != nil {
 		req.RespondError(toError(err))
 		return
@@ -144,7 +144,7 @@ func (sfs *NopSrv) Flush(req *go9p.SrvReq) {
 	if sfs.Debuglevel > 0 {
 		log.Printf("flush %s", fid)
 	}
-	fid.Flush()
+	fid.Flush(req)
 }
 
 func (*NopSrv) Create(req *go9p.SrvReq) {
@@ -160,7 +160,7 @@ func (sfs *NopSrv) Write(req *go9p.SrvReq) {
 		log.Printf("write: %f", fid)
 	}
 
-	e := fid.Write(tc.Data)
+	e := fid.Write(req, tc.Data)
 	if e != nil {
 		req.RespondError(toError(e))
 		return

@@ -18,14 +18,14 @@ type Dispatcher interface {
 	GetParent()           Dispatcher
 	SetParent(Dispatcher)
 
-	IsDir()           bool
-	Size()            uint64
-	Read()            ([]byte, error)
-	Write([]byte)     error
-	Inode()           uint64
-	Perms()           uint32
-	Flush()
-	Walk(string)      (Dispatcher, error)
+	IsDir()                     bool
+	Size()                      uint64
+	Read(*go9p.SrvReq)          ([]byte, error)
+	Write(*go9p.SrvReq, []byte) error
+	Inode()                     uint64
+	Perms()                     uint32
+	Flush(*go9p.SrvReq)
+	Walk(*go9p.SrvReq, string)  (Dispatcher, error)
 	Close()
 }
 
@@ -139,7 +139,7 @@ func (d *Dir) Clone() Dispatcher {
 	return n
 }
 
-func (d *Dir) Walk(name string) (Dispatcher, error) {
+func (d *Dir) Walk(req *go9p.SrvReq, name string) (Dispatcher, error) {
 	d.RLock()
 	defer d.RUnlock()
 	subDisp, ok := d.entries[name]
@@ -154,7 +154,7 @@ func (d *Dir) Walk(name string) (Dispatcher, error) {
 	}
 }
 
-func (d *Dir) Read() ([]byte, error) {
+func (d *Dir) Read(req *go9p.SrvReq) ([]byte, error) {
 	d.RLock()
 	defer d.RUnlock()
 	if d.listing == nil {
@@ -163,7 +163,7 @@ func (d *Dir) Read() ([]byte, error) {
 			path := append(d.GetPath(), name)
 			newDisp := subDisp.Clone()
 			newDisp.SetPath(path)
-			b := go9p.PackDir(Fstat(newDisp), true)
+			b := go9p.PackDir(Fstat(newDisp), req.Conn.Dotu)
 			d.listing = append(d.listing, b...)
 		}
 	}
@@ -173,16 +173,20 @@ func (d *Dir) Read() ([]byte, error) {
 func (d *Dir) Append(name string, disp Dispatcher) *Dir {
 	d.Lock()
 	defer d.Unlock()
+	return d.AppendUnsafe(name, disp)
+}
+
+func (d *Dir) AppendUnsafe(name string, disp Dispatcher) *Dir {
 	d.entries[name] = disp
 	d.listing = nil
 	return d
 }
-
-func (d *Dir) Write([]byte) error {
+	
+func (d *Dir) Write(*go9p.SrvReq, []byte) error {
 	return os.ErrInvalid
 }
 func (d *Dir) Close() {}
-func (d *Dir) Flush() {}
+func (d *Dir) Flush(*go9p.SrvReq) {}
 
 type AnyDir struct {
 	Path
@@ -214,7 +218,7 @@ func (a *AnyDir) Size() uint64 {
 	return uint64(0)
 }
 
-func (a *AnyDir) Walk(name string) (Dispatcher, error) {
+func (a *AnyDir) Walk(req *go9p.SrvReq, name string) (Dispatcher, error) {
 	a.lock.Lock()
 	defer a.lock.Unlock()
 	subDisp, ok := a.static[name]
@@ -235,7 +239,7 @@ func (a *AnyDir) Walk(name string) (Dispatcher, error) {
 	}
 }
 
-func (a *AnyDir) Read() ([]byte, error) {
+func (a *AnyDir) Read(req *go9p.SrvReq) ([]byte, error) {
 	a.lock.RLock()
 	defer a.lock.RUnlock()
 	if a.listing == nil {
@@ -244,7 +248,7 @@ func (a *AnyDir) Read() ([]byte, error) {
 			path := append(a.GetPath(), name)
 			newDisp := subDisp.Clone()
 			newDisp.SetPath(path)
-			b := go9p.PackDir(Fstat(newDisp), true)
+			b := go9p.PackDir(Fstat(newDisp), req.Conn.Dotu)
 			a.listing = append(a.listing, b...)
 		}
 		for name, _ := range a.history {
@@ -289,11 +293,11 @@ func (a *AnyDir) Static(name string, disp Dispatcher) *AnyDir {
 	return a
 }
 
-func (a *AnyDir) Write([]byte) error {
+func (a *AnyDir) Write(*go9p.SrvReq, []byte) error {
 	return os.ErrInvalid
 }
 func (a *AnyDir) Close() {}
-func (a *AnyDir) Flush() {}
+func (a *AnyDir) Flush(*go9p.SrvReq) {}
 
 func AnyDirCtlReset(c *Ctl, data []byte) (resp []byte, err error) {
 	dir, ok := c.GetParent().(*AnyDir)
@@ -318,12 +322,12 @@ func (f *PseudoFile) IsDir() bool {
 	return false
 }
 
-func (f *PseudoFile) Walk(name string) (d Dispatcher, err error) {
+func (f *PseudoFile) Walk(req *go9p.SrvReq, name string) (d Dispatcher, err error) {
 	err = os.ErrInvalid
 	return
 }
 
-func (f *PseudoFile) Write([]byte) error {
+func (f *PseudoFile) Write(*go9p.SrvReq, []byte) error {
 	return os.ErrInvalid
 }
 
@@ -365,7 +369,7 @@ func (c *Cmd) Close() {
 	c.data, c.err = nil, nil
 }
 
-func (c *Cmd) Read() ([]byte, error) {
+func (c *Cmd) Read(*go9p.SrvReq) ([]byte, error) {
 	c.dlock.Lock()
 	defer c.dlock.Unlock()
 	if c.data == nil {
@@ -383,7 +387,7 @@ func (c *Cmd) Read() ([]byte, error) {
 }
 
 
-func (c *Cmd) Flush() {
+func (c *Cmd) Flush(*go9p.SrvReq) {
 	c.clock.Lock()
 	if c.cmd != nil {
 		c.cmd.Process.Kill()
@@ -421,7 +425,7 @@ func (f *Fun) Clone() Dispatcher {
 	return n
 }
 
-func (f *Fun) Read() (data []byte, err error) {
+func (f *Fun) Read(*go9p.SrvReq) (data []byte, err error) {
 	f.Lock()
 	defer f.Unlock()
 	if f.data == nil {
@@ -436,7 +440,7 @@ func (f *Fun) Read() (data []byte, err error) {
 }
 
 func (f *Fun) Size() uint64 { return uint64(0) }
-func (f *Fun) Flush() {}
+func (f *Fun) Flush(*go9p.SrvReq) {}
 func (f *Fun) Close() {}
 
 type File struct {
@@ -461,7 +465,7 @@ func (f *File) Clone() Dispatcher {
 	return n
 }
 
-func (f *File) Read() ([]byte, error) {
+func (f *File) Read(*go9p.SrvReq) ([]byte, error) {
 	return f.data, nil
 }
 
@@ -470,7 +474,7 @@ func (f *File) Size() uint64 {
 }
 
 func (f *File) Close() {}
-func (f *File) Flush() {}
+func (f *File) Flush(*go9p.SrvReq) {}
 
 type Ctl struct {
 	Path
@@ -489,9 +493,9 @@ func (c *Ctl) Clone() Dispatcher {
 func (c *Ctl) Perms() uint32 { return 0666 }
 func (c *Ctl) IsDir() bool { return false }
 func (c *Ctl) Close() {}
-func (c *Ctl) Flush() {}
+func (c *Ctl) Flush(*go9p.SrvReq) {}
 
-func (c *Ctl) Read() (data []byte, err error) {
+func (c *Ctl) Read(*go9p.SrvReq) (data []byte, err error) {
 	c.RLock()
 	defer c.RUnlock()
 	if c.buf == nil {
@@ -502,7 +506,7 @@ func (c *Ctl) Read() (data []byte, err error) {
 	return
 }
 
-func (c *Ctl) Write(data []byte) (err error) {
+func (c *Ctl) Write(req *go9p.SrvReq, data []byte) (err error) {
 	c.Lock()
 	defer c.Unlock()
 	c.buf, err = c.Writer(c, data)
@@ -518,7 +522,7 @@ func (c *Ctl) Size() uint64 {
 	}
 }
 
-func (c *Ctl) Walk(name string) (d Dispatcher, err error) {
+func (c *Ctl) Walk(req *go9p.SrvReq, name string) (d Dispatcher, err error) {
 	err = os.ErrInvalid
 	return
 }

@@ -3,10 +3,10 @@ package main
 import (
 	"flag"
 	"hubs.net.uk/sw/nopfs"
-	"hubs.net.uk/sw/nopfs/icmp"
 	"hubs.net.uk/sw/nopfs/dns"
+	"hubs.net.uk/sw/nopfs/icmp"
 	"log"
-	)
+)
 
 var addr = flag.String("addr", ":5640", "network address")
 var debug = flag.Int("debug", 0, "print debug messages")

@@ -1,8 +1,8 @@
 package nopfs
 
 import (
-	"github.com/rminnich/go9p"
 	"errors"
+	"github.com/rminnich/go9p"
 	"log"
 	"syscall"
 )
@@ -34,7 +34,6 @@ func (sfs *NopSrv) Stat(req *go9p.SrvReq) {
 	}
 	req.RespondRstat(Fstat(fid))
 }
-
 
 func (sfs *NopSrv) Walk(req *go9p.SrvReq) {
 	fid := req.Fid.Aux.(Dispatcher)
@@ -75,7 +74,7 @@ func (sfs *NopSrv) Read(req *go9p.SrvReq) {
 	fid := req.Fid.Aux.(Dispatcher)
 	tc := req.Tc
 	rc := req.Rc
-	
+
 	if sfs.Debuglevel > 0 {
 		log.Printf("read %T %s %d:%d", fid, fid, tc.Offset, tc.Count)
 	}
@@ -85,7 +84,7 @@ func (sfs *NopSrv) Read(req *go9p.SrvReq) {
 		req.RespondError(toError(err))
 		return
 	}
-	
+
 	go9p.InitRread(rc, tc.Count)
 	count := 0
 	switch {
@@ -152,7 +151,6 @@ func (*NopSrv) Create(req *go9p.SrvReq) {
 	req.RespondError(errors.New("create: ..."))
 }
 
-
 func (sfs *NopSrv) Write(req *go9p.SrvReq) {
 	fid := req.Fid.Aux.(Dispatcher)
 	tc := req.Tc
@@ -170,7 +168,7 @@ func (sfs *NopSrv) Write(req *go9p.SrvReq) {
 }
 
 func (*NopSrv) Clunk(req *go9p.SrvReq) {
-	req.RespondRclunk() 
+	req.RespondRclunk()
 }
 
 func (*NopSrv) Remove(req *go9p.SrvReq) {
@@ -179,7 +177,7 @@ func (*NopSrv) Remove(req *go9p.SrvReq) {
 }
 
 func (*NopSrv) Wstat(req *go9p.SrvReq) {
-//	log.Printf("wstat: %p", req)
-//	req.RespondError(errors.New("wstat: ..."))
+	//	log.Printf("wstat: %p", req)
+	//	req.RespondError(errors.New("wstat: ..."))
 	req.RespondRwstat()
 }

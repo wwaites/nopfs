@@ -5,7 +5,7 @@ import (
 	"hubs.net.uk/sw/nopfs"
 	"hubs.net.uk/sw/nopfs/ubnt"
 	"log"
-	)
+)
 
 var addr = flag.String("addr", ":5641", "network address")
 var debug = flag.Int("debug", 0, "print debug messages")

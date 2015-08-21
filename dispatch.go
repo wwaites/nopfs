@@ -1,31 +1,31 @@
 package nopfs
 
 import (
-	"strings"
 	"crypto/sha256"
 	"encoding/binary"
 	"github.com/rminnich/go9p"
-	"time"
 	"os"
 	"os/exec"
+	"strings"
 	"sync"
+	"time"
 )
 
 type Dispatcher interface {
-	Clone()               Dispatcher
-	GetPath()             []string
+	Clone() Dispatcher
+	GetPath() []string
 	SetPath([]string)
-	GetParent()           Dispatcher
+	GetParent() Dispatcher
 	SetParent(Dispatcher)
 
-	IsDir()                     bool
-	Size()                      uint64
-	Read(*go9p.SrvReq)          ([]byte, error)
+	IsDir() bool
+	Size() uint64
+	Read(*go9p.SrvReq) ([]byte, error)
 	Write(*go9p.SrvReq, []byte) error
-	Inode()                     uint64
-	Perms()                     uint32
+	Inode() uint64
+	Perms() uint32
 	Flush(*go9p.SrvReq)
-	Walk(*go9p.SrvReq, string)  (Dispatcher, error)
+	Walk(*go9p.SrvReq, string) (Dispatcher, error)
 	Close()
 }
 
@@ -84,7 +84,7 @@ func (p *Path) SetPath(path []string) {
 }
 
 func (p *Path) Inode() uint64 {
-	buf  := strings.Join(p.path, "/")
+	buf := strings.Join(p.path, "/")
 	hash := sha256.Sum256([]byte(buf))
 	i, _ := binary.Uvarint(hash[:])
 	return i
@@ -181,11 +181,11 @@ func (d *Dir) AppendUnsafe(name string, disp Dispatcher) *Dir {
 	d.listing = nil
 	return d
 }
-	
+
 func (d *Dir) Write(*go9p.SrvReq, []byte) error {
 	return os.ErrInvalid
 }
-func (d *Dir) Close() {}
+func (d *Dir) Close()             {}
 func (d *Dir) Flush(*go9p.SrvReq) {}
 
 type AnyDir struct {
@@ -199,9 +199,9 @@ type AnyDir struct {
 
 func NewAnyDir() (a *AnyDir) {
 	a = &AnyDir{}
-	a.lock    = &sync.RWMutex{}
+	a.lock = &sync.RWMutex{}
 	a.entries = make(map[string]Dispatcher)
-	a.static  = make(map[string]Dispatcher)
+	a.static = make(map[string]Dispatcher)
 	a.history = make(map[string]bool)
 	return
 }
@@ -263,16 +263,15 @@ func (a *AnyDir) Read(req *go9p.SrvReq) ([]byte, error) {
 	return a.listing, nil
 }
 
-
 func (a *AnyDir) Clone() Dispatcher {
 	a.lock.RLock()
 	defer a.lock.RUnlock()
 	n := NewAnyDir()
 	n.SetPath(a.GetPath())
 	n.SetParent(a.GetParent())
-	n.lock    = a.lock
+	n.lock = a.lock
 	n.entries = a.entries
-	n.static  = a.static
+	n.static = a.static
 	n.listing = a.listing
 	n.history = a.history
 	return n
@@ -296,7 +295,7 @@ func (a *AnyDir) Static(name string, disp Dispatcher) *AnyDir {
 func (a *AnyDir) Write(*go9p.SrvReq, []byte) error {
 	return os.ErrInvalid
 }
-func (a *AnyDir) Close() {}
+func (a *AnyDir) Close()             {}
 func (a *AnyDir) Flush(*go9p.SrvReq) {}
 
 func AnyDirCtlReset(c *Ctl, data []byte) (resp []byte, err error) {
@@ -334,17 +333,17 @@ func (f *PseudoFile) Write(*go9p.SrvReq, []byte) error {
 type Cmd struct {
 	PseudoFile
 
-	cfun  func ([]string)*exec.Cmd
+	cfun  func([]string) *exec.Cmd
 	clock sync.Mutex
 	cmd   *exec.Cmd
 
 	dlock sync.Mutex
 	data  []byte
 
-	err   error
+	err error
 }
 
-func NewCmd(cmd func ([]string)*exec.Cmd) (c *Cmd) {
+func NewCmd(cmd func([]string) *exec.Cmd) (c *Cmd) {
 	c = &Cmd{}
 	c.cfun = cmd
 	c.SetPath(make([]string, 0))
@@ -354,7 +353,6 @@ func NewCmd(cmd func ([]string)*exec.Cmd) (c *Cmd) {
 func (c *Cmd) Perms() uint32 {
 	return 0444
 }
-
 
 func (c *Cmd) Clone() Dispatcher {
 	n := NewCmd(c.cfun)
@@ -386,7 +384,6 @@ func (c *Cmd) Read(*go9p.SrvReq) ([]byte, error) {
 	return c.data, c.err
 }
 
-
 func (c *Cmd) Flush(*go9p.SrvReq) {
 	c.clock.Lock()
 	if c.cmd != nil {
@@ -398,7 +395,6 @@ func (c *Cmd) Flush(*go9p.SrvReq) {
 func (c *Cmd) Size() uint64 {
 	return uint64(0)
 }
-
 
 type Fun struct {
 	PseudoFile
@@ -439,9 +435,9 @@ func (f *Fun) Read(*go9p.SrvReq) (data []byte, err error) {
 	return
 }
 
-func (f *Fun) Size() uint64 { return uint64(0) }
+func (f *Fun) Size() uint64       { return uint64(0) }
 func (f *Fun) Flush(*go9p.SrvReq) {}
-func (f *Fun) Close() {}
+func (f *Fun) Close()             {}
 
 type File struct {
 	PseudoFile
@@ -473,14 +469,14 @@ func (f *File) Size() uint64 {
 	return uint64(len(f.data))
 }
 
-func (f *File) Close() {}
+func (f *File) Close()             {}
 func (f *File) Flush(*go9p.SrvReq) {}
 
 type Ctl struct {
 	Path
 	sync.RWMutex
-	Writer   func(*Ctl, []byte) ([]byte, error)
-	buf      []byte
+	Writer func(*Ctl, []byte) ([]byte, error)
+	buf    []byte
 }
 
 func (c *Ctl) Clone() Dispatcher {
@@ -490,9 +486,9 @@ func (c *Ctl) Clone() Dispatcher {
 	return n
 }
 
-func (c *Ctl) Perms() uint32 { return 0666 }
-func (c *Ctl) IsDir() bool { return false }
-func (c *Ctl) Close() {}
+func (c *Ctl) Perms() uint32      { return 0666 }
+func (c *Ctl) IsDir() bool        { return false }
+func (c *Ctl) Close()             {}
 func (c *Ctl) Flush(*go9p.SrvReq) {}
 
 func (c *Ctl) Read(*go9p.SrvReq) (data []byte, err error) {
